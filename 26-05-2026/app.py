@@ -4,6 +4,10 @@ import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
 
+from tensorflow.keras.applications import MobileNetV2
+from tensorflow.keras.layers import GlobalAveragePooling2D, Dense
+from tensorflow.keras.models import Model
+
 # ---------------------------------------------------
 # PAGE CONFIG
 # ---------------------------------------------------
@@ -17,6 +21,7 @@ st.set_page_config(
 # ---------------------------------------------------
 # CUSTOM CSS
 # ---------------------------------------------------
+
 st.markdown("""
 <style>
 
@@ -89,13 +94,30 @@ label {
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# LOAD MODEL
+# LOAD MODEL ARCHITECTURE
 # ---------------------------------------------------
 
-model = tf.keras.models.load_model(
-    "road_damage_model.keras",
-    compile=False
+base_model = MobileNetV2(
+    weights=None,
+    include_top=False,
+    input_shape=(224, 224, 3)
 )
+
+x = GlobalAveragePooling2D()(base_model.output)
+
+output = Dense(3, activation='softmax')(x)
+
+model = Model(
+    inputs=base_model.input,
+    outputs=output
+)
+
+# ---------------------------------------------------
+# LOAD WEIGHTS
+# ---------------------------------------------------
+
+model.load_weights("road_damage.weights.h5")
+
 CLASS_NAMES = ['crack', 'manhole', 'pothole']
 
 # ---------------------------------------------------
@@ -111,6 +133,8 @@ def preprocess_image(image):
     # Remove alpha channel if present
     if img_array.shape[-1] == 4:
         img_array = img_array[:, :, :3]
+
+    img_array = img_array / 255.0
 
     img_array = np.expand_dims(img_array, axis=0)
 
@@ -260,10 +284,6 @@ if uploaded_file is not None:
 
     image = Image.open(uploaded_file).convert("RGB")
 
-    # -------------------------------------------
-    # IMAGE + RESULTS COLUMNS
-    # -------------------------------------------
-
     col1, col2 = st.columns([1, 1])
 
     # -------------------------------------------
@@ -357,7 +377,6 @@ if uploaded_file is not None:
 
     ax.set_title("Prediction Confidence Scores")
 
-    # Add values above bars
     for bar in bars:
 
         height = bar.get_height()
