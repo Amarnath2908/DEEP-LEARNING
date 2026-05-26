@@ -92,8 +92,10 @@ label {
 # LOAD MODEL
 # ---------------------------------------------------
 
-model = tf.keras.models.load_model("road_damage_model.keras")
-
+model = tf.keras.models.load_model(
+    "road_damage_model.keras",
+    compile=False
+)
 CLASS_NAMES = ['crack', 'manhole', 'pothole']
 
 # ---------------------------------------------------
