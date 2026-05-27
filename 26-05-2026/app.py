@@ -94,30 +94,18 @@ label {
 # ---------------------------------------------------
 
 # ✅ FIX 1: Use path relative to app.py so it works on Streamlit Cloud
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-weights_path = os.path.join(BASE_DIR, "road_damage.weights.h5")
+model_path = os.path.join(BASE_DIR, "road_damage_model.keras")
 
-@st.cache_resource  # ✅ FIX 2: Cache model so it doesn't reload on every interaction
+@st.cache_resource
 def load_model():
-    base_model = MobileNetV2(
-        weights=None,
-        include_top=False,
-        input_shape=(224, 224, 3)
-    )
-
-    x = GlobalAveragePooling2D()(base_model.output)
-    x = Dropout(0.3)(x)
-    x = Dense(128, activation='relu')(x)
-    x = Dropout(0.3)(x)
-    output = Dense(3, activation='softmax')(x)
-
-    model = Model(inputs=base_model.input, outputs=output)
-    model.load_weights(weights_path)
-    return model
+    # ✅ Loads architecture + weights together — no mismatch possible
+    return tf.keras.models.load_model(model_path)
 
 model = load_model()
 
-CLASS_NAMES = ['crack', 'manhole', 'pothole']
+CLASS_NAMES = ['crack', 'manhole', 'pothole']   
 
 # ---------------------------------------------------
 # FUNCTIONS
