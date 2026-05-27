@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import tensorflow as tf
 import numpy as np
@@ -5,7 +6,8 @@ from PIL import Image
 import matplotlib.pyplot as plt
 
 from tensorflow.keras.applications import MobileNetV2
-from tensorflow.keras.layers import GlobalAveragePooling2D, Dense
+from tensorflow.keras.applications.mobilenet_v2 import preprocess_input  # ✅ FIX
+from tensorflow.keras.layers import GlobalAveragePooling2D, Dense, Dropout
 from tensorflow.keras.models import Model
 
 # ---------------------------------------------------
@@ -29,7 +31,6 @@ st.markdown("""
     background-color: #0b1120;
 }
 
-/* Cards */
 .section-card {
     background-color: white;
     color: black;
@@ -39,7 +40,6 @@ st.markdown("""
     margin-bottom: 25px;
 }
 
-/* Force text visibility */
 .section-card h1,
 .section-card h2,
 .section-card h3,
@@ -51,12 +51,10 @@ st.markdown("""
     color: black !important;
 }
 
-/* Upload text */
 label {
     color: white !important;
 }
 
-/* Prediction box */
 .prediction-box {
     padding: 25px;
     border-radius: 15px;
@@ -66,7 +64,6 @@ label {
     margin-bottom: 15px;
 }
 
-/* Severity Colors */
 .high {
     background-color: #ffcccc;
     color: #b30000;
@@ -82,7 +79,6 @@ label {
     color: #155724;
 }
 
-/* Footer */
 .footer {
     text-align: center;
     color: lightgray;
@@ -94,29 +90,32 @@ label {
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# LOAD MODEL ARCHITECTURE
+# LOAD MODEL
 # ---------------------------------------------------
 
-base_model = MobileNetV2(
-    weights=None,
-    include_top=False,
-    input_shape=(224, 224, 3)
-)
+# ✅ FIX 1: Use path relative to app.py so it works on Streamlit Cloud
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+weights_path = os.path.join(BASE_DIR, "road_damage.weights.h5")
 
-x = GlobalAveragePooling2D()(base_model.output)
+@st.cache_resource  # ✅ FIX 2: Cache model so it doesn't reload on every interaction
+def load_model():
+    base_model = MobileNetV2(
+        weights=None,
+        include_top=False,
+        input_shape=(224, 224, 3)
+    )
 
-output = Dense(3, activation='softmax')(x)
+    x = GlobalAveragePooling2D()(base_model.output)
+    x = Dropout(0.3)(x)
+    x = Dense(128, activation='relu')(x)
+    x = Dropout(0.3)(x)
+    output = Dense(3, activation='softmax')(x)
 
-model = Model(
-    inputs=base_model.input,
-    outputs=output
-)
+    model = Model(inputs=base_model.input, outputs=output)
+    model.load_weights(weights_path)
+    return model
 
-# ---------------------------------------------------
-# LOAD WEIGHTS
-# ---------------------------------------------------
-
-model.load_weights("road_damage.weights.h5")
+model = load_model()
 
 CLASS_NAMES = ['crack', 'manhole', 'pothole']
 
@@ -125,50 +124,41 @@ CLASS_NAMES = ['crack', 'manhole', 'pothole']
 # ---------------------------------------------------
 
 def preprocess_image(image):
-
     image = image.resize((224, 224))
-
     img_array = np.array(image)
 
     # Remove alpha channel if present
     if img_array.shape[-1] == 4:
         img_array = img_array[:, :, :3]
 
-    img_array = img_array / 255.0
+    img_array = img_array.astype(np.float32)
+
+    # ✅ FIX 3: Use MobileNetV2's preprocess_input instead of /255
+    # preprocess_input scales pixels to [-1, 1] as MobileNetV2 expects
+    img_array = preprocess_input(img_array)
 
     img_array = np.expand_dims(img_array, axis=0)
-
     return img_array
 
 
 def get_severity(pred_class, confidence):
-
     if pred_class == "pothole":
-
         if confidence > 0.85:
             return "High"
-
         elif confidence > 0.60:
             return "Medium"
-
         else:
             return "Low"
-
     elif pred_class == "crack":
-
         if confidence > 0.80:
             return "Medium"
-
         else:
             return "Low"
-
     return "Low"
 
 
 def get_recommendation(pred_class):
-
     if pred_class == "pothole":
-
         return """
 🚨 Immediate maintenance recommended.
 
@@ -176,9 +166,7 @@ def get_recommendation(pred_class):
 
 🚧 Repair priority should be HIGH.
 """
-
     elif pred_class == "crack":
-
         return """
 🛠 Schedule road inspection soon.
 
@@ -186,20 +174,17 @@ def get_recommendation(pred_class):
 
 🚧 Preventive maintenance recommended.
 """
-
     elif pred_class == "manhole":
-
         return """
 ✅ Manhole detected.
 
 🔍 Ensure proper alignment and cover safety.
 """
-
     return "No recommendation available."
 
 
 # ---------------------------------------------------
-# HEADER SECTION
+# HEADER
 # ---------------------------------------------------
 
 st.markdown("""
@@ -210,46 +195,31 @@ st.markdown("""
     text-align: center;
     margin-bottom: 30px;
 ">
-
-<h1 style="
-    color: white;
-    font-size: 52px;
-    margin-bottom: 10px;
-">
+<h1 style="color: white; font-size: 52px; margin-bottom: 10px;">
 🛣️ AI-Based Road Damage Detection System
 </h1>
-
-<p style="
-    color: white;
-    font-size: 24px;
-">
+<p style="color: white; font-size: 24px;">
 Smart City Infrastructure Monitoring using CNN
 </p>
-
 </div>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# ABOUT PROJECT SECTION
+# ABOUT
 # ---------------------------------------------------
 
 st.markdown("""
 <div class="section-card">
-
 <h2>📌 About the Project</h2>
-
 <p>
 Road damage monitoring is essential for maintaining safe transportation systems.
 Damaged roads can cause accidents, traffic congestion, and vehicle damage.
 </p>
-
 <p>
 This project uses <b>Convolutional Neural Networks (CNN)</b> with MobileNetV2
 to automatically detect road damages such as potholes, cracks, and manholes.
 </p>
-
 <h3>🚀 Industry Applications</h3>
-
 <ul>
 <li>Smart City Monitoring</li>
 <li>Automated Road Inspection</li>
@@ -257,12 +227,11 @@ to automatically detect road damages such as potholes, cracks, and manholes.
 <li>AI-Based Maintenance Planning</li>
 <li>Road Safety Systems</li>
 </ul>
-
 </div>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# IMAGE UPLOAD SECTION
+# UPLOAD
 # ---------------------------------------------------
 
 st.markdown("""
@@ -277,7 +246,7 @@ uploaded_file = st.file_uploader(
 )
 
 # ---------------------------------------------------
-# PREDICTION PIPELINE
+# PREDICTION
 # ---------------------------------------------------
 
 if uploaded_file is not None:
@@ -286,47 +255,23 @@ if uploaded_file is not None:
 
     col1, col2 = st.columns([1, 1])
 
-    # -------------------------------------------
-    # IMAGE PREVIEW
-    # -------------------------------------------
-
     with col1:
-
         st.markdown("""
         <div class="section-card">
         <h3>🖼 Uploaded Image Preview</h3>
         </div>
         """, unsafe_allow_html=True)
-
-        st.image(
-            image,
-            use_container_width=True
-        )
-
-    # -------------------------------------------
-    # MODEL PREDICTION
-    # -------------------------------------------
+        st.image(image, use_container_width=True)
 
     processed_image = preprocess_image(image)
-
     prediction = model.predict(processed_image, verbose=0)
-
     pred_index = np.argmax(prediction)
-
     pred_class = CLASS_NAMES[pred_index]
-
     confidence = float(np.max(prediction))
-
     severity = get_severity(pred_class, confidence)
-
     recommendation = get_recommendation(pred_class)
 
-    # -------------------------------------------
-    # PREDICTION RESULTS
-    # -------------------------------------------
-
     with col2:
-
         st.markdown("""
         <div class="section-card">
         <h3>🔍 Prediction Result</h3>
@@ -341,24 +286,13 @@ if uploaded_file is not None:
         </div>
         """, unsafe_allow_html=True)
 
-        st.metric(
-            label="Confidence Score",
-            value=f"{confidence * 100:.2f}%"
-        )
-
-        st.metric(
-            label="Severity Level",
-            value=severity
-        )
+        st.metric(label="Confidence Score", value=f"{confidence * 100:.2f}%")
+        st.metric(label="Severity Level", value=severity)
 
         st.markdown("### ⚠️ Recommendations")
-
         st.info(recommendation)
 
-    # -------------------------------------------
-    # VISUALIZATION SECTION
-    # -------------------------------------------
-
+    # Confidence bar chart
     st.markdown("""
     <div class="section-card">
     <h2>📊 Class Confidence Graph</h2>
@@ -366,26 +300,22 @@ if uploaded_file is not None:
     """, unsafe_allow_html=True)
 
     probabilities = prediction[0] * 100
+    colors = ['#e74c3c' if cn == pred_class else '#3498db' for cn in CLASS_NAMES]
 
     fig, ax = plt.subplots(figsize=(8, 4))
-
-    bars = ax.bar(CLASS_NAMES, probabilities)
-
-    ax.set_ylim([0, 100])
-
+    bars = ax.bar(CLASS_NAMES, probabilities, color=colors)
+    ax.set_ylim([0, 110])
     ax.set_ylabel("Confidence (%)")
-
     ax.set_title("Prediction Confidence Scores")
 
     for bar in bars:
-
         height = bar.get_height()
-
         ax.text(
             bar.get_x() + bar.get_width() / 2,
             height + 1,
             f"{height:.1f}%",
-            ha='center'
+            ha='center',
+            fontweight='bold'
         )
 
     st.pyplot(fig)
