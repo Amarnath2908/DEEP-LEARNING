@@ -67,91 +67,68 @@ except Exception as e:
 # =====================================================
 # LOAD MODELS
 # =====================================================
+import os
+import tensorflow as tf
+import pickle
+import streamlit as st
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 simple_rnn_model = None
 lstm_model = None
 gru_model = None
+tokenizer = None
 
+# Debug
+st.sidebar.write("Current Directory")
+st.sidebar.write(BASE_DIR)
+
+st.sidebar.write("Files Available")
+st.sidebar.write(os.listdir(BASE_DIR))
+
+# SimpleRNN
 try:
-
-    simple_rnn_path = os.path.join(
-    MODEL_DIR,
-    "simple_rnn.keras"
-)
-
-    if os.path.exists(simple_rnn_path):
-            simple_rnn_model = tf.keras.models.load_model(
-            simple_rnn_path,
-            compile=False
-        )
-    else:
-        st.sidebar.error(
-        f"Missing file: {simple_rnn_path}"
+    simple_rnn_model = tf.keras.models.load_model(
+        os.path.join(BASE_DIR, "simple_rnn.keras"),
+        compile=False
     )
+    st.sidebar.success("✅ SimpleRNN Loaded")
+except Exception as e:
+    st.sidebar.error(f"SimpleRNN Error: {e}")
 
-    st.sidebar.success(
-        "✅ SimpleRNN Loaded"
+# LSTM
+try:
+    lstm_model = tf.keras.models.load_model(
+        os.path.join(BASE_DIR, "lstm_model.keras"),
+        compile=False
     )
+    st.sidebar.success("✅ LSTM Loaded")
+except Exception as e:
+    st.sidebar.error(f"LSTM Error: {e}")
+
+# GRU
+try:
+    gru_model = tf.keras.models.load_model(
+        os.path.join(BASE_DIR, "gru_model.keras"),
+        compile=False
+    )
+    st.sidebar.success("✅ GRU Loaded")
+except Exception as e:
+    st.sidebar.error(f"GRU Error: {e}")
+
+# Tokenizer
+try:
+    with open(
+        os.path.join(BASE_DIR, "tokenizer.pkl"),
+        "rb"
+    ) as f:
+        tokenizer = pickle.load(f)
+
+    st.sidebar.success("✅ Tokenizer Loaded")
 
 except Exception as e:
-
-    st.sidebar.error(
-        f"SimpleRNN Error:\n{str(e)}"
-    )
-
-try:
-
-    lstm_path = os.path.join(
-    MODEL_DIR,
-    "simple_rnn.keras"
-)
-
-    if os.path.exists(lstm_path):
-            simple_rnn_model = tf.keras.models.load_model(
-            simple_rnn_path,
-            compile=False
-        )
-    else:
-        st.sidebar.error(
-        f"Missing file: {lstm_path}"
-    )
-
-    st.sidebar.success(
-        "✅ LSTM Loaded"
-    )
-
-except Exception as e:
-
-    st.sidebar.error(
-        f"LSTM Error:\n{str(e)}"
-    )
-
-try:
-
-    gru_path = os.path.join(
-    MODEL_DIR,
-    "simple_rnn.keras"
-)
-
-    if os.path.exists(gru_path):
-            simple_rnn_model = tf.keras.models.load_model(
-            simple_rnn_path,
-            compile=False
-        )
-    else:
-        st.sidebar.error(
-        f"Missing file: {gru_path}"
-    )
-
-    st.sidebar.success(
-        "✅ GRU Loaded"
-    )
-
-except Exception as e:
-
-    st.sidebar.error(
-        f"GRU Error:\n{str(e)}"
-    )
+    st.sidebar.error(f"Tokenizer Error: {e}")
+    st.stop()
 
 # =====================================================
 # LOAD TOKENIZER
