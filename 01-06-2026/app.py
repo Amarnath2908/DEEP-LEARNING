@@ -13,8 +13,10 @@ from nltk.corpus import stopwords
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 # =====================================================
-# PAGE CONFIG
+# CONFIGURATION
 # =====================================================
+
+MODEL_DIR = "01-06-2026"
 
 st.set_page_config(
     page_title="Movie Review Sentiment Analysis",
@@ -22,7 +24,7 @@ st.set_page_config(
 )
 
 # =====================================================
-# NLTK DOWNLOAD
+# DOWNLOAD NLTK DATA
 # =====================================================
 
 try:
@@ -31,7 +33,7 @@ except LookupError:
     nltk.download("stopwords")
 
 # =====================================================
-# SIDEBAR DEBUG INFO
+# DEBUG INFORMATION
 # =====================================================
 
 st.sidebar.title("System Information")
@@ -40,9 +42,17 @@ st.sidebar.write(
     f"TensorFlow Version: {tf.__version__}"
 )
 
+st.sidebar.write("Root Folder Files")
+
 try:
-    st.sidebar.write("Files Found:")
     st.sidebar.write(os.listdir("."))
+except Exception as e:
+    st.sidebar.error(str(e))
+
+st.sidebar.write("Model Folder Files")
+
+try:
+    st.sidebar.write(os.listdir(MODEL_DIR))
 except Exception as e:
     st.sidebar.error(str(e))
 
@@ -55,8 +65,9 @@ lstm_model = None
 gru_model = None
 
 try:
+
     simple_rnn_model = tf.keras.models.load_model(
-        "simple_rnn.keras",
+        f"{MODEL_DIR}/simple_rnn.keras",
         compile=False
     )
 
@@ -71,8 +82,9 @@ except Exception as e:
     )
 
 try:
+
     lstm_model = tf.keras.models.load_model(
-        "lstm_model.keras",
+        f"{MODEL_DIR}/lstm_model.keras",
         compile=False
     )
 
@@ -87,8 +99,9 @@ except Exception as e:
     )
 
 try:
+
     gru_model = tf.keras.models.load_model(
-        "gru_model.keras",
+        f"{MODEL_DIR}/gru_model.keras",
         compile=False
     )
 
@@ -108,7 +121,11 @@ except Exception as e:
 
 try:
 
-    with open("tokenizer.pkl", "rb") as f:
+    with open(
+        f"{MODEL_DIR}/tokenizer.pkl",
+        "rb"
+    ) as f:
+
         tokenizer = pickle.load(f)
 
     st.sidebar.success(
@@ -118,13 +135,13 @@ try:
 except Exception as e:
 
     st.error(
-        f"Tokenizer Loading Error:\n{str(e)}"
+        f"Tokenizer Error:\n{str(e)}"
     )
 
     st.stop()
 
 # =====================================================
-# MAIN UI
+# UI
 # =====================================================
 
 st.title(
@@ -151,7 +168,7 @@ selected_model = st.selectbox(
 )
 
 # =====================================================
-# REVIEW INPUT
+# INPUT AREA
 # =====================================================
 
 review = st.text_area(
@@ -182,8 +199,8 @@ def preprocess(text):
 
     text = text.translate(
         str.maketrans(
-            '',
-            '',
+            "",
+            "",
             string.punctuation
         )
     )
@@ -215,14 +232,12 @@ def preprocess(text):
 # PREDICTION FUNCTION
 # =====================================================
 
-def predict_sentiment(model, review_text):
+def predict_sentiment(model, text):
 
-    processed_review = preprocess(
-        review_text
-    )
+    processed = preprocess(text)
 
     probability = model.predict(
-        processed_review,
+        processed,
         verbose=0
     )[0][0]
 
@@ -241,7 +256,7 @@ def predict_sentiment(model, review_text):
     return sentiment, confidence, probability
 
 # =====================================================
-# BUTTON
+# PREDICT BUTTON
 # =====================================================
 
 if st.button("Analyze Review"):
@@ -254,50 +269,48 @@ if st.button("Analyze Review"):
 
     else:
 
-        # ------------------------------------------
-        # SELECT MODEL
-        # ------------------------------------------
-
         if selected_model == "SimpleRNN":
-            model = simple_rnn_model
+            selected_loaded_model = simple_rnn_model
 
         elif selected_model == "LSTM":
-            model = lstm_model
+            selected_loaded_model = lstm_model
 
         else:
-            model = gru_model
+            selected_loaded_model = gru_model
 
-        if model is None:
+        if selected_loaded_model is None:
 
             st.error(
-                f"{selected_model} failed to load."
+                f"{selected_model} model is unavailable."
             )
 
             st.stop()
 
-        sentiment, confidence, prob = predict_sentiment(
-            model,
+        sentiment, confidence, probability = predict_sentiment(
+            selected_loaded_model,
             review
         )
 
-        # ------------------------------------------
+        # ==========================================
         # OUTPUT
-        # ------------------------------------------
+        # ==========================================
 
         st.success(
             f"Sentiment: {sentiment}"
         )
 
         st.info(
-            f"Confidence: {confidence * 100:.2f}%"
+            f"Confidence: {confidence*100:.2f}%"
         )
 
-        # ------------------------------------------
+        # ==========================================
         # PROBABILITIES
-        # ------------------------------------------
+        # ==========================================
 
-        positive_prob = prob * 100
-        negative_prob = (1 - prob) * 100
+        positive_probability = probability * 100
+        negative_probability = (
+            1 - probability
+        ) * 100
 
         st.subheader(
             "Probability Analysis"
@@ -310,8 +323,8 @@ if st.button("Analyze Review"):
                     "Negative"
                 ],
                 "Probability": [
-                    positive_prob,
-                    negative_prob
+                    positive_probability,
+                    negative_probability
                 ]
             }
         )
@@ -322,9 +335,9 @@ if st.button("Analyze Review"):
             )
         )
 
-        # ------------------------------------------
+        # ==========================================
         # CONFIDENCE CHART
-        # ------------------------------------------
+        # ==========================================
 
         st.subheader(
             "Confidence Chart"
@@ -345,23 +358,23 @@ if st.button("Analyze Review"):
 
         st.pyplot(fig)
 
-        # ------------------------------------------
+        # ==========================================
         # COMPARE ALL MODELS
-        # ------------------------------------------
+        # ==========================================
 
         st.subheader(
-            "Compare All Models"
+            "Compare Predictions Across Models"
         )
 
         comparison_results = []
 
-        all_models = {
+        models = {
             "SimpleRNN": simple_rnn_model,
             "LSTM": lstm_model,
             "GRU": gru_model
         }
 
-        for model_name, model_obj in all_models.items():
+        for model_name, model_obj in models.items():
 
             if model_obj is None:
                 continue
