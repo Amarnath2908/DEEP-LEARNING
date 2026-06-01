@@ -1,61 +1,145 @@
-# app.py
-
-
 import streamlit as st
 import tensorflow as tf
 import pickle
-import numpy as np
 import pandas as pd
-
-from tensorflow.keras.preprocessing.sequence import pad_sequences
-from nltk.corpus import stopwords
-from bs4 import BeautifulSoup
+import numpy as np
+import os
+import nltk
 import string
 import matplotlib.pyplot as plt
 
-# --------------------------------------------------
-# Load Models
-# --------------------------------------------------
+from bs4 import BeautifulSoup
+from nltk.corpus import stopwords
+from tensorflow.keras.preprocessing.sequence import pad_sequences
 
-simple_rnn_model = tf.keras.models.load_model(
-    "simple_rnn.keras"
-)
-
-lstm_model = tf.keras.models.load_model(
-    "lstm_model.keras"
-)
-
-gru_model = tf.keras.models.load_model(
-    "gru_model.keras"
-)
-
-# --------------------------------------------------
-# Load Tokenizer
-# --------------------------------------------------
-
-with open("tokenizer.pkl", "rb") as f:
-    tokenizer = pickle.load(f)
-
-# --------------------------------------------------
-# Streamlit UI
-# --------------------------------------------------
+# =====================================================
+# PAGE CONFIG
+# =====================================================
 
 st.set_page_config(
     page_title="Movie Review Sentiment Analysis",
     layout="wide"
 )
 
-st.title("🎬 Movie Review Sentiment Analysis System")
+# =====================================================
+# NLTK DOWNLOAD
+# =====================================================
+
+try:
+    nltk.data.find("corpora/stopwords")
+except LookupError:
+    nltk.download("stopwords")
+
+# =====================================================
+# SIDEBAR DEBUG INFO
+# =====================================================
+
+st.sidebar.title("System Information")
+
+st.sidebar.write(
+    f"TensorFlow Version: {tf.__version__}"
+)
+
+try:
+    st.sidebar.write("Files Found:")
+    st.sidebar.write(os.listdir("."))
+except Exception as e:
+    st.sidebar.error(str(e))
+
+# =====================================================
+# LOAD MODELS
+# =====================================================
+
+simple_rnn_model = None
+lstm_model = None
+gru_model = None
+
+try:
+    simple_rnn_model = tf.keras.models.load_model(
+        "simple_rnn.keras",
+        compile=False
+    )
+
+    st.sidebar.success(
+        "✅ SimpleRNN Loaded"
+    )
+
+except Exception as e:
+
+    st.sidebar.error(
+        f"SimpleRNN Error:\n{str(e)}"
+    )
+
+try:
+    lstm_model = tf.keras.models.load_model(
+        "lstm_model.keras",
+        compile=False
+    )
+
+    st.sidebar.success(
+        "✅ LSTM Loaded"
+    )
+
+except Exception as e:
+
+    st.sidebar.error(
+        f"LSTM Error:\n{str(e)}"
+    )
+
+try:
+    gru_model = tf.keras.models.load_model(
+        "gru_model.keras",
+        compile=False
+    )
+
+    st.sidebar.success(
+        "✅ GRU Loaded"
+    )
+
+except Exception as e:
+
+    st.sidebar.error(
+        f"GRU Error:\n{str(e)}"
+    )
+
+# =====================================================
+# LOAD TOKENIZER
+# =====================================================
+
+try:
+
+    with open("tokenizer.pkl", "rb") as f:
+        tokenizer = pickle.load(f)
+
+    st.sidebar.success(
+        "✅ Tokenizer Loaded"
+    )
+
+except Exception as e:
+
+    st.error(
+        f"Tokenizer Loading Error:\n{str(e)}"
+    )
+
+    st.stop()
+
+# =====================================================
+# MAIN UI
+# =====================================================
+
+st.title(
+    "🎬 Movie Review Sentiment Analysis System"
+)
 
 st.subheader(
     "Deep Learning Based Sentiment Classification"
 )
 
-st.divider()
+st.markdown("---")
 
-# --------------------------------------------------
-# Model Selection
-# --------------------------------------------------
+# =====================================================
+# MODEL SELECTION
+# =====================================================
 
 selected_model = st.selectbox(
     "Select Model",
@@ -66,20 +150,26 @@ selected_model = st.selectbox(
     ]
 )
 
-# --------------------------------------------------
-# Input Area
-# --------------------------------------------------
+# =====================================================
+# REVIEW INPUT
+# =====================================================
 
 review = st.text_area(
     "Enter your movie review here...",
     height=200
 )
 
-# --------------------------------------------------
-# Preprocessing Function
-# --------------------------------------------------
+# =====================================================
+# STOPWORDS
+# =====================================================
 
-stop_words = set(stopwords.words("english"))
+stop_words = set(
+    stopwords.words("english")
+)
+
+# =====================================================
+# PREPROCESSING
+# =====================================================
 
 def preprocess(text):
 
@@ -108,61 +198,65 @@ def preprocess(text):
 
     text = " ".join(tokens)
 
-    seq = tokenizer.texts_to_sequences([text])
+    sequence = tokenizer.texts_to_sequences(
+        [text]
+    )
 
     padded = pad_sequences(
-        seq,
+        sequence,
         maxlen=200,
-        padding='post',
-        truncating='post'
+        padding="post",
+        truncating="post"
     )
 
     return padded
 
-# --------------------------------------------------
-# Prediction Function
-# --------------------------------------------------
+# =====================================================
+# PREDICTION FUNCTION
+# =====================================================
 
-def predict(model, review):
+def predict_sentiment(model, review_text):
 
-    processed = preprocess(review)
+    processed_review = preprocess(
+        review_text
+    )
 
-    prob = model.predict(
-        processed,
+    probability = model.predict(
+        processed_review,
         verbose=0
     )[0][0]
 
     sentiment = (
         "Positive"
-        if prob >= 0.5
+        if probability >= 0.5
         else "Negative"
     )
 
     confidence = (
-        prob
-        if prob >= 0.5
-        else 1 - prob
+        probability
+        if probability >= 0.5
+        else 1 - probability
     )
 
-    return sentiment, confidence, prob
+    return sentiment, confidence, probability
 
-# --------------------------------------------------
-# Predict Button
-# --------------------------------------------------
+# =====================================================
+# BUTTON
+# =====================================================
 
 if st.button("Analyze Review"):
 
     if review.strip() == "":
 
         st.warning(
-            "Please enter a review."
+            "Please enter a movie review."
         )
 
     else:
 
-        # ------------------------------
-        # Selected Model Prediction
-        # ------------------------------
+        # ------------------------------------------
+        # SELECT MODEL
+        # ------------------------------------------
 
         if selected_model == "SimpleRNN":
             model = simple_rnn_model
@@ -173,37 +267,49 @@ if st.button("Analyze Review"):
         else:
             model = gru_model
 
-        sentiment, confidence, prob = predict(
+        if model is None:
+
+            st.error(
+                f"{selected_model} failed to load."
+            )
+
+            st.stop()
+
+        sentiment, confidence, prob = predict_sentiment(
             model,
             review
         )
+
+        # ------------------------------------------
+        # OUTPUT
+        # ------------------------------------------
 
         st.success(
             f"Sentiment: {sentiment}"
         )
 
         st.info(
-            f"Confidence: {confidence*100:.2f}%"
+            f"Confidence: {confidence * 100:.2f}%"
         )
 
-        # ------------------------------
-        # Probabilities
-        # ------------------------------
+        # ------------------------------------------
+        # PROBABILITIES
+        # ------------------------------------------
 
         positive_prob = prob * 100
         negative_prob = (1 - prob) * 100
 
-        st.subheader("Probability Analysis")
+        st.subheader(
+            "Probability Analysis"
+        )
 
         probability_df = pd.DataFrame(
             {
-                "Class":
-                [
+                "Class": [
                     "Positive",
                     "Negative"
                 ],
-                "Probability":
-                [
+                "Probability": [
                     positive_prob,
                     negative_prob
                 ]
@@ -211,14 +317,18 @@ if st.button("Analyze Review"):
         )
 
         st.bar_chart(
-            probability_df.set_index("Class")
+            probability_df.set_index(
+                "Class"
+            )
         )
 
-        # ------------------------------
-        # Confidence Chart
-        # ------------------------------
+        # ------------------------------------------
+        # CONFIDENCE CHART
+        # ------------------------------------------
 
-        st.subheader("Confidence Chart")
+        st.subheader(
+            "Confidence Chart"
+        )
 
         fig, ax = plt.subplots()
 
@@ -227,48 +337,53 @@ if st.button("Analyze Review"):
             [confidence * 100]
         )
 
-        ax.set_ylim(0,100)
+        ax.set_ylim(0, 100)
+
+        ax.set_ylabel(
+            "Confidence (%)"
+        )
 
         st.pyplot(fig)
 
-        # ------------------------------
-        # Compare All Models
-        # ------------------------------
+        # ------------------------------------------
+        # COMPARE ALL MODELS
+        # ------------------------------------------
 
         st.subheader(
-            "Comparison Across Models"
+            "Compare All Models"
         )
 
-        models = {
-            "SimpleRNN":
-            simple_rnn_model,
+        comparison_results = []
 
-            "LSTM":
-            lstm_model,
-
-            "GRU":
-            gru_model
+        all_models = {
+            "SimpleRNN": simple_rnn_model,
+            "LSTM": lstm_model,
+            "GRU": gru_model
         }
 
-        results = []
+        for model_name, model_obj in all_models.items():
 
-        for model_name, model_obj in models.items():
+            if model_obj is None:
+                continue
 
-            sentiment, conf, prob = predict(
+            pred_sentiment, pred_confidence, _ = predict_sentiment(
                 model_obj,
                 review
             )
 
-            results.append(
+            comparison_results.append(
                 [
                     model_name,
-                    sentiment,
-                    round(conf*100,2)
+                    pred_sentiment,
+                    round(
+                        pred_confidence * 100,
+                        2
+                    )
                 ]
             )
 
         comparison_df = pd.DataFrame(
-            results,
+            comparison_results,
             columns=[
                 "Model",
                 "Prediction",
@@ -280,4 +395,3 @@ if st.button("Analyze Review"):
             comparison_df,
             use_container_width=True
         )
-
