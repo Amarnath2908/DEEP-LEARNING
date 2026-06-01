@@ -17,6 +17,14 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 # =====================================================
 
 MODEL_DIR = "01-06-2026"
+st.sidebar.write("Current Working Directory")
+st.sidebar.write(os.getcwd())
+
+if os.path.exists(MODEL_DIR):
+    st.sidebar.success(f"{MODEL_DIR} folder found")
+    st.sidebar.write(os.listdir(MODEL_DIR))
+else:
+    st.sidebar.error(f"{MODEL_DIR} folder not found")
 
 st.set_page_config(
     page_title="Movie Review Sentiment Analysis",
@@ -66,9 +74,19 @@ gru_model = None
 
 try:
 
-    simple_rnn_model = tf.keras.models.load_model(
-        f"{MODEL_DIR}/simple_rnn.keras",
-        compile=False
+    simple_rnn_path = os.path.join(
+    MODEL_DIR,
+    "simple_rnn.keras"
+)
+
+    if os.path.exists(simple_rnn_path):
+            simple_rnn_model = tf.keras.models.load_model(
+            simple_rnn_path,
+            compile=False
+        )
+    else:
+        st.sidebar.error(
+        f"Missing file: {simple_rnn_path}"
     )
 
     st.sidebar.success(
@@ -83,9 +101,19 @@ except Exception as e:
 
 try:
 
-    lstm_model = tf.keras.models.load_model(
-        f"{MODEL_DIR}/lstm_model.keras",
-        compile=False
+    lstm_path = os.path.join(
+    MODEL_DIR,
+    "simple_rnn.keras"
+)
+
+    if os.path.exists(lstm_path):
+            simple_rnn_model = tf.keras.models.load_model(
+            simple_rnn_path,
+            compile=False
+        )
+    else:
+        st.sidebar.error(
+        f"Missing file: {lstm_path}"
     )
 
     st.sidebar.success(
@@ -100,9 +128,19 @@ except Exception as e:
 
 try:
 
-    gru_model = tf.keras.models.load_model(
-        f"{MODEL_DIR}/gru_model.keras",
-        compile=False
+    gru_path = os.path.join(
+    MODEL_DIR,
+    "simple_rnn.keras"
+)
+
+    if os.path.exists(gru_path):
+            simple_rnn_model = tf.keras.models.load_model(
+            simple_rnn_path,
+            compile=False
+        )
+    else:
+        st.sidebar.error(
+        f"Missing file: {gru_path}"
     )
 
     st.sidebar.success(
@@ -121,12 +159,27 @@ except Exception as e:
 
 try:
 
-    with open(
-        f"{MODEL_DIR}/tokenizer.pkl",
-        "rb"
-    ) as f:
+    tokenizer_path = os.path.join(
+    MODEL_DIR,
+    "tokenizer.pkl"
+)
 
-        tokenizer = pickle.load(f)
+    if os.path.exists(tokenizer_path):
+
+        with open(tokenizer_path, "rb") as f:
+            tokenizer = pickle.load(f)
+
+        st.sidebar.success(
+        "✅ Tokenizer Loaded"
+    )
+
+    else:
+        st.sidebar.error(
+        f"Tokenizer not found: {tokenizer_path}"
+    )
+    st.stop()
+
+    tokenizer = pickle.load(f)
 
     st.sidebar.success(
         "✅ Tokenizer Loaded"
