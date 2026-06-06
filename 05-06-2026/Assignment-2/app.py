@@ -5,6 +5,9 @@ import tensorflow as tf
 import joblib
 import plotly.express as px
 import time
+import os
+import tensorflow as tf
+
 
 # --------------------------------------------------
 # Page Config
@@ -63,8 +66,6 @@ class PositionalEncoding(tf.keras.layers.Layer):
         return config
 @st.cache_resource
 @st.cache_resource
-import os
-import tensorflow as tf
 
 @st.cache_resource
 def load_model():
