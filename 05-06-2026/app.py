@@ -4,7 +4,7 @@ import tensorflow as tf
 import numpy as np
 import pickle
 import re
-import pandas as pdc
+import pandas as pd
 import plotly.express as px
 
 from tensorflow.keras.preprocessing.sequence import pad_sequences
@@ -33,8 +33,8 @@ st.markdown("""
 
 /* Title */
 .big-title {
-    font-size: 100px;
-    font-weight: 600;
+    font-size: 72px;
+    font-weight: 800;
     color: #4FC3F7;
     text-align: center;
     letter-spacing: -1px;
@@ -123,7 +123,6 @@ section[data-testid="stSidebar"] {
 
 @st.cache_resource
 def load_artifacts():
-    # Build absolute paths relative to this script — fixes FileNotFoundError on Streamlit Cloud
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
     model = tf.keras.models.load_model(
@@ -162,10 +161,11 @@ def predict_specialty(text):
     seq = tokenizer.texts_to_sequences([text])
     seq = pad_sequences(seq, maxlen=MAX_LEN, padding='post')
     pred = model.predict(seq, verbose=0)
-    class_idx = np.argmax(pred)
+    pred = pred[0]  # flatten to 1D array
+    class_idx = int(np.argmax(pred))
     specialty = encoder.inverse_transform([class_idx])[0]
-    confidence = np.max(pred)
-    return specialty, confidence, pred[0]
+    confidence = float(np.max(pred))
+    return specialty, confidence, pred
 
 # -----------------------------------
 # HEADER
@@ -274,9 +274,14 @@ if st.button("🔍 Predict Specialty"):
 
         st.subheader("Prediction Probabilities")
 
+        # Safely build DataFrame — ensure lengths always match
+        classes = list(encoder.classes_)
+        probs_list = [float(p) for p in probs]
+        min_len = min(len(classes), len(probs_list))
+
         prob_df = pd.DataFrame({
-            "Specialty": encoder.classes_,
-            "Probability": probs
+            "Specialty": classes[:min_len],
+            "Probability": probs_list[:min_len]
         })
 
         prob_df = prob_df.sort_values(
@@ -284,7 +289,6 @@ if st.button("🔍 Predict Specialty"):
             ascending=False
         ).head(10)
 
-        # Fixed: plotly import and chart code now correctly inside the else block
         fig = px.bar(
             prob_df,
             x="Probability",
