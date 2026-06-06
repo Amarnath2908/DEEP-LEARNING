@@ -1,9 +1,11 @@
+import os
 import streamlit as st
 import tensorflow as tf
 import numpy as np
 import pickle
 import re
-import pandas as pd
+import pandas as pdc
+import plotly.express as px
 
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
@@ -31,100 +33,85 @@ st.markdown("""
 
 /* Title */
 .big-title {
-    font-size: 42px;
-    font-weight: 700;
+    font-size: 100px;
+    font-weight: 600;
     color: #4FC3F7;
     text-align: center;
+    letter-spacing: -1px;
+    line-height: 1.1;
+    margin-bottom: 10px;
 }
 
 /* Subtitle */
 .subtitle {
     text-align: center;
     color: #B0BEC5;
-    font-size: 18px;
+    font-size: 26px;
+    font-weight: 400;
+    margin-top: 6px;
 }
 
 /* Prediction Card */
 .pred-box {
-
     background: linear-gradient(
         135deg,
         #1E293B,
         #111827
     );
-
     padding: 25px;
-
     border-radius: 20px;
-
     border-left: 6px solid #38BDF8;
-
     color: white;
-
-    box-shadow:
-        0px 0px 20px
-        rgba(56,189,248,0.2);
+    box-shadow: 0px 0px 20px rgba(56,189,248,0.2);
 }
 
 /* Prediction Heading */
-.pred-box h2{
-    color:#CBD5E1;
+.pred-box h2 {
+    color: #CBD5E1;
 }
 
 /* Predicted Specialty */
-.pred-box h1{
-    color:#4FC3F7;
+.pred-box h1 {
+    color: #4FC3F7;
 }
 
 /* Confidence */
-.pred-box h3{
-    color:#E2E8F0;
+.pred-box h3 {
+    color: #E2E8F0;
 }
 
 /* Text Area */
 textarea {
-
     background-color: #1E293B !important;
-
     color: white !important;
-
     border-radius: 10px !important;
-
     border: 1px solid #334155 !important;
 }
 
 /* Buttons */
 .stButton > button {
-
     width: 100%;
-
     background: linear-gradient(
         90deg,
         #2563EB,
         #06B6D4
     );
-
     color: white;
-
     border: none;
-
     border-radius: 12px;
-
     height: 50px;
-
     font-size: 18px;
-
     font-weight: 600;
 }
 
 /* Dataframe */
 [data-testid="stDataFrame"] {
-    background-color:#111827;
+    background-color: #111827;
 }
 
 /* Sidebar */
 section[data-testid="stSidebar"] {
-    background-color:#111827;
+    background-color: #111827;
 }
 
 </style>
@@ -136,16 +123,18 @@ section[data-testid="stSidebar"] {
 
 @st.cache_resource
 def load_artifacts():
+    # Build absolute paths relative to this script — fixes FileNotFoundError on Streamlit Cloud
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
     model = tf.keras.models.load_model(
-        "medical_specialty_model.h5",
+        os.path.join(BASE_DIR, "medical_specialty_model.h5"),
         compile=False
     )
 
-    with open("tokenizer.pkl", "rb") as f:
+    with open(os.path.join(BASE_DIR, "tokenizer.pkl"), "rb") as f:
         tokenizer = pickle.load(f)
 
-    with open("label_encoder.pkl", "rb") as f:
+    with open(os.path.join(BASE_DIR, "label_encoder.pkl"), "rb") as f:
         encoder = pickle.load(f)
 
     return model, tokenizer, encoder
@@ -159,17 +148,9 @@ MAX_LEN = 300
 # -----------------------------------
 
 def clean_text(text):
-
     text = text.lower()
-
     text = re.sub(r'\d+', ' ', text)
-
-    text = re.sub(
-        r'[^a-zA-Z\s]',
-        ' ',
-        text
-    )
-
+    text = re.sub(r'[^a-zA-Z\s]', ' ', text)
     return text
 
 # -----------------------------------
@@ -177,29 +158,13 @@ def clean_text(text):
 # -----------------------------------
 
 def predict_specialty(text):
-
     text = clean_text(text)
-
-    seq = tokenizer.texts_to_sequences(
-        [text]
-    )
-
-    seq = pad_sequences(
-        seq,
-        maxlen=MAX_LEN,
-        padding='post'
-    )
-
+    seq = tokenizer.texts_to_sequences([text])
+    seq = pad_sequences(seq, maxlen=MAX_LEN, padding='post')
     pred = model.predict(seq, verbose=0)
-
     class_idx = np.argmax(pred)
-
-    specialty = encoder.inverse_transform(
-        [class_idx]
-    )[0]
-
+    specialty = encoder.inverse_transform([class_idx])[0]
     confidence = np.max(pred)
-
     return specialty, confidence, pred[0]
 
 # -----------------------------------
@@ -223,9 +188,7 @@ st.divider()
 # -----------------------------------
 
 with st.sidebar:
-
     st.header("📋 About")
-
     st.write("""
     This AI model predicts the medical specialty
     from clinical reports.
@@ -238,19 +201,15 @@ with st.sidebar:
     - Radiology
     - Gastroenterology
     """)
-
-    st.success(
-        f"Total Classes: {len(encoder.classes_)}"
-    )
+    st.success(f"Total Classes: {len(encoder.classes_)}")
 
 # -----------------------------------
 # INPUT AREA
 # -----------------------------------
 
-col1, col2 = st.columns([2,1])
+col1, col2 = st.columns([2, 1])
 
 with col1:
-
     report = st.text_area(
         "Enter Clinical Report",
         height=250,
@@ -261,7 +220,6 @@ left cerebral hemisphere with weakness.
     )
 
 with col2:
-
     st.subheader("Example Reports")
 
     if st.button("Neurology Example"):
@@ -293,16 +251,10 @@ if "example" in st.session_state:
 if st.button("🔍 Predict Specialty"):
 
     if len(report.strip()) == 0:
-
-        st.warning(
-            "Please enter a medical report."
-        )
+        st.warning("Please enter a medical report.")
 
     else:
-
-        specialty, confidence, probs = (
-            predict_specialty(report)
-        )
+        specialty, confidence, probs = predict_specialty(report)
 
         st.markdown(
             f"""
@@ -316,20 +268,15 @@ if st.button("🔍 Predict Specialty"):
         )
 
         st.metric(
-    label="Confidence Score",
-    value=f"{confidence*100:.2f}%"
-)
-        st.subheader(
-            "Prediction Probabilities"
+            label="Confidence Score",
+            value=f"{confidence*100:.2f}%"
         )
 
+        st.subheader("Prediction Probabilities")
+
         prob_df = pd.DataFrame({
-
-            "Specialty":
-                encoder.classes_,
-
-            "Probability":
-                probs
+            "Specialty": encoder.classes_,
+            "Probability": probs
         })
 
         prob_df = prob_df.sort_values(
@@ -337,33 +284,24 @@ if st.button("🔍 Predict Specialty"):
             ascending=False
         ).head(10)
 
-    import plotly.express as px
-
-    fig = px.bar(
-    prob_df,
-    x="Probability",
-    y="Specialty",
-    orientation="h",
-    title="Top Predicted Specialties"
-)
-
-    fig.update_layout(
-    template="plotly_dark",
-    height=500
-)
-
-    st.plotly_chart(
-    fig,
-    use_container_width=True
-)
-
-    st.dataframe(
+        # Fixed: plotly import and chart code now correctly inside the else block
+        fig = px.bar(
             prob_df,
-            use_container_width=True
+            x="Probability",
+            y="Specialty",
+            orientation="h",
+            title="Top Predicted Specialties"
         )
+
+        fig.update_layout(
+            template="plotly_dark",
+            height=500
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.dataframe(prob_df, use_container_width=True)
 
 st.divider()
 
-st.caption(
-    "Built using TensorFlow, Transformers and Streamlit"
-)
+st.caption("Built using TensorFlow, Transformers and Streamlit")
