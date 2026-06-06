@@ -63,15 +63,16 @@ class PositionalEncoding(tf.keras.layers.Layer):
         return config
 @st.cache_resource
 @st.cache_resource
-def load_model():
+import os
+import tensorflow as tf
 
-    return tf.keras.models.load_model(
-        "fraud_detection_model.h5",
-        custom_objects={
-            "PositionalEncoding": PositionalEncoding
-        },
-        compile=False
-    )
+@st.cache_resource
+def load_model():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+
+    model_path = os.path.join(base_dir, "fraud_detection_model.h5")
+
+    return tf.keras.models.load_model(model_path, compile=False)
 
 @st.cache_resource
 def load_scaler():
