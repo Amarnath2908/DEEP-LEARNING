@@ -1,96 +1,35 @@
 # =========================================================
-# STREAMLIT APP
 # AI-BASED MENTAL HEALTH SENTIMENT MONITORING SYSTEM
+# STREAMLIT DEPLOYMENT
 # =========================================================
 
 # =========================================================
 # IMPORT LIBRARIES
 # =========================================================
 
-import streamlit as st
-import tensorflow as tf
-import numpy as np
-import pickle
+import os
 import re
-import nltk
-import pandas as pd
+import pickle
+import numpy as np
+import streamlit as st
 import matplotlib.pyplot as plt
-
-from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize
+import nltk
 
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
+
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
 
 # =========================================================
 # DOWNLOAD NLTK FILES
 # =========================================================
 
 nltk.download('punkt')
-nltk.download('punkt_tab')
 nltk.download('stopwords')
 
 # =========================================================
-# LOAD TRAINED MODEL
-# =========================================================
-
-model = load_model(
-    "mental_health_rnn_model.h5"
-)
-
-# =========================================================
-# LOAD TOKENIZER
-# =========================================================
-
-with open("tokenizer.pkl", "rb") as f:
-    tokenizer = pickle.load(f)
-
-# =========================================================
-# LOAD LABEL ENCODER
-# =========================================================
-
-with open("label_encoder.pkl", "rb") as f:
-    encoder = pickle.load(f)
-
-# =========================================================
-# PARAMETERS
-# =========================================================
-
-max_length = 50
-
-# =========================================================
-# TEXT PREPROCESSING
-# =========================================================
-
-stop_words = set(stopwords.words('english'))
-
-important_words = ['not', 'no', 'never']
-
-def preprocess_text(text):
-
-    # Lowercase
-    text = text.lower()
-
-    # Remove punctuation/numbers
-    text = re.sub(r'[^a-zA-Z\s]', '', text)
-
-    # Tokenization
-    words = word_tokenize(text)
-
-    # Stopword removal
-    words = [
-        word for word in words
-        if word not in stop_words
-        or word in important_words
-    ]
-
-    # Join words
-    cleaned_text = " ".join(words)
-
-    return cleaned_text
-
-# =========================================================
-# PAGE CONFIG
+# PAGE CONFIGURATION
 # =========================================================
 
 st.set_page_config(
@@ -100,11 +39,145 @@ st.set_page_config(
 )
 
 # =========================================================
+# GET CURRENT DIRECTORY
+# =========================================================
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# =========================================================
+# FILE PATHS
+# =========================================================
+
+MODEL_PATH = os.path.join(
+    BASE_DIR,
+    "mental_health_rnn_model.h5"
+)
+
+TOKENIZER_PATH = os.path.join(
+    BASE_DIR,
+    "tokenizer.pkl"
+)
+
+LABEL_ENCODER_PATH = os.path.join(
+    BASE_DIR,
+    "label_encoder.pkl"
+)
+
+# =========================================================
+# CHECK FILE EXISTENCE
+# =========================================================
+
+if not os.path.exists(MODEL_PATH):
+    st.error("Model file not found!")
+    st.stop()
+
+if not os.path.exists(TOKENIZER_PATH):
+    st.error("Tokenizer file not found!")
+    st.stop()
+
+if not os.path.exists(LABEL_ENCODER_PATH):
+    st.error("Label encoder file not found!")
+    st.stop()
+
+# =========================================================
+# LOAD MODEL
+# =========================================================
+
+model = load_model(MODEL_PATH)
+
+# =========================================================
+# LOAD TOKENIZER
+# =========================================================
+
+with open(TOKENIZER_PATH, "rb") as f:
+    tokenizer = pickle.load(f)
+
+# =========================================================
+# LOAD LABEL ENCODER
+# =========================================================
+
+with open(LABEL_ENCODER_PATH, "rb") as f:
+    encoder = pickle.load(f)
+
+# =========================================================
+# PARAMETERS
+# =========================================================
+
+MAX_LENGTH = 50
+
+stop_words = set(stopwords.words('english'))
+
+important_words = ['not', 'no', 'never']
+
+# =========================================================
+# TEXT PREPROCESSING FUNCTION
+# =========================================================
+
+def preprocess_text(text):
+
+    # Convert to lowercase
+    text = text.lower()
+
+    # Remove punctuation and numbers
+    text = re.sub(r'[^a-zA-Z\s]', '', text)
+
+    # Tokenization
+    words = word_tokenize(text)
+
+    # Remove stopwords
+    words = [
+        word for word in words
+        if word not in stop_words
+        or word in important_words
+    ]
+
+    # Join cleaned words
+    cleaned_text = " ".join(words)
+
+    return cleaned_text
+
+# =========================================================
+# PREDICTION FUNCTION
+# =========================================================
+
+def predict_emotion(text):
+
+    # Preprocess text
+    cleaned = preprocess_text(text)
+
+    # Convert to sequence
+    sequence = tokenizer.texts_to_sequences([cleaned])
+
+    # Padding
+    padded = pad_sequences(
+        sequence,
+        maxlen=MAX_LENGTH,
+        padding='post',
+        truncating='post'
+    )
+
+    # Predict
+    prediction = model.predict(padded)
+
+    # Predicted class
+    predicted_class = np.argmax(prediction)
+
+    # Confidence score
+    confidence = np.max(prediction) * 100
+
+    # Emotion label
+    emotion = encoder.inverse_transform(
+        [predicted_class]
+    )[0]
+
+    return emotion, confidence, prediction[0]
+
+# =========================================================
 # SECTION 1 — HEADER
 # =========================================================
 
 st.title(
-    "🧠 AI-Based Mental Health Sentiment Monitoring System"
+    "AI-Based Mental Health Sentiment Monitoring System"
 )
 
 st.subheader(
@@ -117,37 +190,22 @@ st.markdown("---")
 # SECTION 2 — ABOUT PROJECT
 # =========================================================
 
-st.header("📘 About the Project")
+st.header("About the Project")
 
 st.write("""
+Emotional Artificial Intelligence (AI) helps machines
+understand human emotions from textual data.
 
-This AI-powered application analyzes user text messages
-to detect emotional sentiment patterns using Deep Learning
-and Natural Language Processing (NLP).
+Natural Language Processing (NLP) is widely used in:
+- sentiment analysis
+- healthcare systems
+- recommendation systems
+- chatbots
+- social media analysis
 
-### Importance of Emotional AI
-Emotional AI helps identify:
-- stress
-- anxiety
-- depression
-- emotional distress
-- suicidal tendencies
-
-It supports early intervention and emotional wellness monitoring.
-
-### NLP Applications
-Natural Language Processing enables machines to:
-- understand human emotions
-- analyze text sentiment
-- process sequential language data
-- generate intelligent predictions
-
-### Role of RNN/LSTM in Sequence Learning
-RNNs and LSTMs process words sequentially while remembering
-previous context using hidden states and memory cells.
-
-This helps the model understand emotional meaning from sentences.
-
+Recurrent Neural Networks (RNNs) are sequence learning
+models that remember previous information in text,
+making them highly effective for emotional analysis.
 """)
 
 st.markdown("---")
@@ -156,27 +214,22 @@ st.markdown("---")
 # SECTION 3 — USER INPUT AREA
 # =========================================================
 
-st.header("📝 Enter Your Thoughts")
+st.header("User Text Input")
 
-st.write("### Sample Sentences")
+st.write("### Sample Sentence Suggestions")
 
-st.info("""
-• I feel mentally exhausted and hopeless.
-• Nobody understands my emotions.
-• I feel happy and motivated today.
-• I am anxious about my future.
-""")
+st.info("I feel lonely and emotionally exhausted.")
+
+st.info("Nobody understands how stressed I feel.")
+
+st.info("I am very happy and excited today.")
+
+st.info("I feel mentally tired and anxious.")
 
 user_input = st.text_area(
-
-    "Enter your thoughts or feelings here...",
-
-    height=200,
-
-    placeholder="""
-Example:
-I feel stressed and emotionally tired lately...
-"""
+    "Enter Text",
+    placeholder="Enter your thoughts or feelings here...",
+    height=200
 )
 
 st.markdown("---")
@@ -185,15 +238,13 @@ st.markdown("---")
 # SECTION 4 — PREDICTION BUTTON
 # =========================================================
 
-analyze_button = st.button(
-    "🔍 Analyze Emotion"
-)
+analyze = st.button("Analyze Emotion")
 
 # =========================================================
 # SECTION 5 — PREDICTION OUTPUT
 # =========================================================
 
-if analyze_button:
+if analyze:
 
     if user_input.strip() == "":
 
@@ -201,50 +252,12 @@ if analyze_button:
 
     else:
 
-        # =============================================
-        # PREPROCESS INPUT
-        # =============================================
-
-        cleaned = preprocess_text(user_input)
-
-        # =============================================
-        # TOKENIZATION
-        # =============================================
-
-        sequence = tokenizer.texts_to_sequences(
-            [cleaned]
+        # Prediction
+        emotion, confidence, probabilities = predict_emotion(
+            user_input
         )
 
-        # =============================================
-        # PADDING
-        # =============================================
-
-        padded = pad_sequences(
-            sequence,
-            maxlen=max_length,
-            padding='post',
-            truncating='post'
-        )
-
-        # =============================================
-        # PREDICTION
-        # =============================================
-
-        prediction = model.predict(padded)
-
-        predicted_class = np.argmax(prediction)
-
-        confidence = np.max(prediction) * 100
-
-        emotion = encoder.inverse_transform(
-            [predicted_class]
-        )[0]
-
-        # =============================================
-        # DISPLAY RESULTS
-        # =============================================
-
-        st.header("📊 Prediction Output")
+        st.header("Prediction Output")
 
         st.success(
             f"Emotion Detected: {emotion}"
@@ -254,32 +267,38 @@ if analyze_button:
             f"Confidence Score: {confidence:.2f}%"
         )
 
-        # =============================================
-        # EMOTIONAL STATUS
-        # =============================================
-
+        # Emotional status
         if emotion.lower() in [
             'depression',
-            'suicidal',
             'stress',
             'anxiety'
         ]:
 
-            st.error(
-                "Emotional Status: Emotional distress detected."
+            emotional_status = (
+                "User may require emotional support."
+            )
+
+        elif emotion.lower() == 'suicidal':
+
+            emotional_status = (
+                "User may require immediate emotional attention."
             )
 
         elif emotion.lower() == 'normal':
 
-            st.success(
-                "Emotional Status: Emotionally stable."
+            emotional_status = (
+                "User appears emotionally stable."
             )
 
         else:
 
-            st.warning(
-                "Emotional Status: Emotional pattern identified."
+            emotional_status = (
+                "Emotional pattern detected."
             )
+
+        st.warning(
+            f"Emotional Status: {emotional_status}"
+        )
 
         st.markdown("---")
 
@@ -287,69 +306,108 @@ if analyze_button:
         # SECTION 6 — VISUALIZATION AREA
         # =================================================
 
-        st.header("📈 Sentiment Confidence Graph")
+        st.header("Visualization Area")
 
         labels = encoder.classes_
 
-        probabilities = prediction[0] * 100
+        fig, ax = plt.subplots(figsize=(10, 5))
 
-        chart_data = pd.DataFrame({
-            "Emotion": labels,
-            "Confidence": probabilities
-        })
+        ax.bar(labels, probabilities)
 
-        st.bar_chart(
-            chart_data.set_index("Emotion")
+        ax.set_title(
+            "Sentiment Confidence Graph"
         )
 
+        ax.set_xlabel(
+            "Emotion Categories"
+        )
+
+        ax.set_ylabel(
+            "Probability"
+        )
+
+        plt.xticks(rotation=45)
+
+        st.pyplot(fig)
+
+        st.markdown("---")
+
         # =================================================
-        # SECTION 7 — EMOTIONAL GUIDANCE
+        # SECTION 7 — EMOTIONAL GUIDANCE AREA
         # =================================================
 
-        st.header("💡 Emotional Wellness Guidance")
+        st.header("Emotional Guidance Area")
 
-        if emotion.lower() == "anxiety":
+        if emotion.lower() in [
+            'anxiety',
+            'stress',
+            'depression'
+        ]:
 
-            st.warning("""
-Take deep breaths and try relaxation exercises.
-Talking to someone you trust may help reduce anxiety.
-""")
+            st.error(
+                "Take a short break and talk with someone you trust."
+            )
 
-        elif emotion.lower() == "depression":
+            st.write("""
+            ### Positive Activities
+            - Practice meditation
+            - Listen to calming music
+            - Go for a short walk
+            - Stay hydrated
+            - Talk with supportive people
 
-            st.warning("""
-Remember that difficult moments are temporary.
-Consider reaching out to supportive friends or professionals.
-""")
+            ### Emotional Wellness Tips
+            - Maintain healthy sleep
+            - Reduce overthinking
+            - Practice deep breathing
+            - Take regular breaks
+            """)
 
-        elif emotion.lower() == "stress":
+        elif emotion.lower() == 'suicidal':
 
-            st.warning("""
-Take a short break and focus on self-care.
-Proper sleep and relaxation can help reduce stress.
-""")
+            st.error(
+                "Please seek immediate professional emotional support."
+            )
 
-        elif emotion.lower() == "suicidal":
+            st.write("""
+            ### Important Guidance
+            - Contact trusted family or friends
+            - Reach out to mental health professionals
+            - Avoid isolation
+            - Seek emergency support if needed
+            """)
 
-            st.error("""
-You are not alone.
-Please talk to a trusted person or mental health professional immediately.
-Seeking help is important.
-""")
+        elif emotion.lower() == 'normal':
 
-        elif emotion.lower() == "normal":
+            st.success(
+                "Great! Maintain your positive emotional balance."
+            )
 
-            st.success("""
-Great to hear positive emotional stability.
-Continue maintaining healthy habits and positivity.
-""")
+            st.write("""
+            ### Positive Activities
+            - Continue healthy habits
+            - Exercise regularly
+            - Stay socially active
+            - Practice gratitude
+
+            ### Wellness Tips
+            - Maintain work-life balance
+            - Continue mindfulness exercises
+            """)
 
         else:
 
-            st.info("""
-Stay positive and practice healthy emotional habits.
-Mindfulness and social support are beneficial.
-""")
+            st.info(
+                "Stay positive and continue taking care of your emotional wellness."
+            )
+
+            st.write("""
+            ### Wellness Suggestions
+            - Spend time with loved ones
+            - Maintain daily routines
+            - Take proper rest
+            - Stay physically active
+            """)
 
 # =========================================================
 # FOOTER
@@ -358,5 +416,6 @@ Mindfulness and social support are beneficial.
 st.markdown("---")
 
 st.caption(
-    "Developed using TensorFlow, NLP, Bidirectional LSTM, and Streamlit"
+    "AI-Based Mental Health Sentiment Monitoring System using NLP and RNN"
 )
+
