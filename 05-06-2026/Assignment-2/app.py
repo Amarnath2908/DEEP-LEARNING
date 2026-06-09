@@ -239,4 +239,4 @@ if uploaded_file is not None:
         st.success("Simulation Completed")
 
 else:
-    st.info("Upload a CSV file to begin fraud detection.")
+    st.info("Upload a CSV file to begin fraud detection.")  
