@@ -5,7 +5,7 @@ import pickle
 import re
 import matplotlib.pyplot as plt
 import seaborn as sns
-
+import os
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from collections import Counter
@@ -120,12 +120,12 @@ class_names = [
 # ==================================================
 # LOAD MODEL & TOKENIZER
 # ==================================================
-
+BASEDIR = os.path.dirname(os.path.abspath(__file__)) 
 @st.cache_resource
 def load_artifacts():
 
     model = load_model(
-        "attention_model.h5",
+        os.path.join(BASEDIR,"attention_model.h5"),
         compile=False
     )
 
