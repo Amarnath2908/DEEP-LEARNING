@@ -6,8 +6,6 @@ import joblib
 import plotly.express as px
 import time
 import os
-import tensorflow as tf
-
 
 # --------------------------------------------------
 # Page Config
@@ -23,10 +21,8 @@ st.title("💳 Deep Learning Fraud Detection System")
 st.markdown("Upload transaction data and predict fraudulent transactions.")
 
 # --------------------------------------------------
-# Load Model & Scaler
+# Custom Layer Definition
 # --------------------------------------------------
-import tensorflow as tf
-import numpy as np
 
 class PositionalEncoding(tf.keras.layers.Layer):
 
@@ -42,7 +38,6 @@ class PositionalEncoding(tf.keras.layers.Layer):
         )
 
         angles = pos * angle_rates
-
         angles[:, 0::2] = np.sin(angles[:, 0::2])
         angles[:, 1::2] = np.cos(angles[:, 1::2])
 
@@ -64,16 +59,22 @@ class PositionalEncoding(tf.keras.layers.Layer):
             "d_model": self.d_model
         })
         return config
-@st.cache_resource
-@st.cache_resource
+
+# --------------------------------------------------
+# Load Model & Scaler
+# --------------------------------------------------
 
 @st.cache_resource
 def load_model():
     base_dir = os.path.dirname(os.path.abspath(__file__))
-
     model_path = os.path.join(base_dir, "fraud_detection_model.h5")
 
-    return tf.keras.models.load_model(model_path, compile=False)
+    # ✅ Pass PositionalEncoding so Keras can reconstruct it
+    return tf.keras.models.load_model(
+        model_path,
+        custom_objects={"PositionalEncoding": PositionalEncoding},
+        compile=False
+    )
 
 @st.cache_resource
 def load_scaler():
@@ -120,9 +121,7 @@ if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
 
     st.subheader("Dataset Preview")
-
     st.dataframe(df.head())
-
     st.write("Shape:", df.shape)
 
     # ------------------------------------------
@@ -139,15 +138,9 @@ if uploaded_file is not None:
     # ------------------------------------------
 
     try:
-
         scaled_features = scaler.transform(feature_df)
-
     except Exception as e:
-
-        st.error(
-            f"Feature mismatch detected.\n\n{e}"
-        )
-
+        st.error(f"Feature mismatch detected.\n\n{e}")
         st.stop()
 
     # ------------------------------------------
@@ -156,41 +149,23 @@ if uploaded_file is not None:
 
     X = []
 
-    for i in range(
-        len(scaled_features) - SEQUENCE_LENGTH
-    ):
-
-        X.append(
-            scaled_features[
-                i:i+SEQUENCE_LENGTH
-            ]
-        )
+    for i in range(len(scaled_features) - SEQUENCE_LENGTH):
+        X.append(scaled_features[i:i + SEQUENCE_LENGTH])
 
     X = np.array(X)
 
-    st.success(
-        f"{len(X)} sequences generated"
-    )
+    st.success(f"{len(X)} sequences generated")
 
     # ------------------------------------------
     # Predict
     # ------------------------------------------
 
-    predictions = model.predict(
-        X,
-        verbose=0
-    )
-
+    predictions = model.predict(X, verbose=0)
     fraud_probs = predictions.flatten()
 
     result_df = pd.DataFrame({
-
-        "Sequence_ID":
-            np.arange(len(fraud_probs)),
-
-        "Fraud_Probability":
-            fraud_probs
-
+        "Sequence_ID": np.arange(len(fraud_probs)),
+        "Fraud_Probability": fraud_probs
     })
 
     result_df["Risk"] = np.where(
@@ -208,72 +183,45 @@ if uploaded_file is not None:
     col1, col2, col3 = st.columns(3)
 
     with col1:
-
-        st.metric(
-            "Total Sequences",
-            len(result_df)
-        )
+        st.metric("Total Sequences", len(result_df))
 
     with col2:
-
         st.metric(
             "High Risk",
-            len(
-                result_df[
-                    result_df["Risk"]=="High Risk"
-                ]
-            )
+            len(result_df[result_df["Risk"] == "High Risk"])
         )
 
     with col3:
-
         st.metric(
             "Average Fraud Probability",
-            round(
-                fraud_probs.mean(),
-                4
-            )
+            round(fraud_probs.mean(), 4)
         )
 
     # ------------------------------------------
     # Predictions Table
     # ------------------------------------------
 
-    st.subheader(
-        "Fraud Prediction Results"
-    )
-
+    st.subheader("Fraud Prediction Results")
     st.dataframe(result_df)
 
     # ------------------------------------------
     # High Risk Transactions
     # ------------------------------------------
 
-    st.subheader(
-        "🚨 High Risk Transactions"
-    )
+    st.subheader("🚨 High Risk Transactions")
 
-    high_risk = result_df[
-        result_df["Risk"]=="High Risk"
-    ]
+    high_risk = result_df[result_df["Risk"] == "High Risk"]
 
     if len(high_risk) > 0:
-
         st.dataframe(high_risk)
-
     else:
-
-        st.success(
-            "No high-risk transactions detected."
-        )
+        st.success("No high-risk transactions detected.")
 
     # ------------------------------------------
     # Fraud Probability Chart
     # ------------------------------------------
 
-    st.subheader(
-        "Fraud Probability Trend"
-    )
+    st.subheader("Fraud Probability Trend")
 
     fig = px.line(
         result_df,
@@ -282,18 +230,13 @@ if uploaded_file is not None:
         title="Fraud Probability Across Sequences"
     )
 
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
+    st.plotly_chart(fig, use_container_width=True)
 
     # ------------------------------------------
     # Fraud Probability Distribution
     # ------------------------------------------
 
-    st.subheader(
-        "Fraud Probability Distribution"
-    )
+    st.subheader("Fraud Probability Distribution")
 
     fig2 = px.histogram(
         result_df,
@@ -302,18 +245,13 @@ if uploaded_file is not None:
         title="Probability Distribution"
     )
 
-    st.plotly_chart(
-        fig2,
-        use_container_width=True
-    )
+    st.plotly_chart(fig2, use_container_width=True)
 
     # ------------------------------------------
     # Top Risky Transactions
     # ------------------------------------------
 
-    st.subheader(
-        "Top 10 Highest Risk Transactions"
-    )
+    st.subheader("Top 10 Highest Risk Transactions")
 
     top10 = result_df.sort_values(
         by="Fraud_Probability",
@@ -326,16 +264,10 @@ if uploaded_file is not None:
     # Attention Investigation
     # ------------------------------------------
 
-    st.subheader(
-        "Attention Investigation"
-    )
+    st.subheader("Attention Investigation")
 
     if len(fraud_probs) > 0:
-
-        most_important_txn = np.argmax(
-            fraud_probs
-        )
-
+        most_important_txn = np.argmax(fraud_probs)
         st.success(
             f"Most Influential Transaction Sequence: {most_important_txn}"
         )
@@ -344,13 +276,9 @@ if uploaded_file is not None:
     # Download Results
     # ------------------------------------------
 
-    st.subheader(
-        "Download Predictions"
-    )
+    st.subheader("Download Predictions")
 
-    csv = result_df.to_csv(
-        index=False
-    ).encode("utf-8")
+    csv = result_df.to_csv(index=False).encode("utf-8")
 
     st.download_button(
         label="Download Results CSV",
@@ -363,21 +291,14 @@ if uploaded_file is not None:
     # Real-Time Simulation
     # ------------------------------------------
 
-    st.subheader(
-        "⚡ Real-Time Fraud Detection Simulation"
-    )
+    st.subheader("⚡ Real-Time Fraud Detection Simulation")
 
-    if st.button(
-        "Start Simulation"
-    ):
+    if st.button("Start Simulation"):
 
         progress = st.progress(0)
-
         status = st.empty()
 
-        for i in range(
-            min(20, len(X))
-        ):
+        for i in range(min(20, len(X))):
 
             prob = model.predict(
                 np.expand_dims(X[i], axis=0),
@@ -388,20 +309,10 @@ if uploaded_file is not None:
                 f"Sequence {i} → Fraud Probability: {prob:.4f}"
             )
 
-            progress.progress(
-                (i+1)/20
-            )
-
+            progress.progress((i + 1) / 20)
             time.sleep(0.5)
 
-        st.success(
-            "Simulation Completed"
-        )
+        st.success("Simulation Completed")
 
 else:
-
-    st.info(
-        "Upload a CSV file to begin fraud detection."
-    )
-
-
+    st.info("Upload a CSV file to begin fraud detection.")
