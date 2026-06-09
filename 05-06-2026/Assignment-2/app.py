@@ -69,12 +69,11 @@ class PositionalEncoding(tf.keras.layers.Layer):
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def repo_path(filename: str) -> str:
-    """Return absolute path to a file sitting next to app.py."""
     return os.path.join(BASE_DIR, filename)
 
 
 # --------------------------------------------------
-# File-existence check (fail fast with a clear message)
+# File-existence check
 # --------------------------------------------------
 
 MODEL_PATH  = repo_path("fraud_detection_model.keras")
@@ -83,11 +82,9 @@ SCALER_PATH = repo_path("scaler.pkl")
 missing = [f for f in [MODEL_PATH, SCALER_PATH] if not os.path.exists(f)]
 if missing:
     st.error(
-        "**Required file(s) not found in the deployment directory:**\n\n"
+        "**Required file(s) not found:**\n\n"
         + "\n".join(f"- `{os.path.basename(f)}`" for f in missing)
-        + "\n\nMake sure `fraud_detection_model.h5` **and** `scaler.pkl` are "
-          "committed to the same GitHub folder as `app.py` "
-          f"(`{BASE_DIR}`) and re-deploy."
+        + "\n\nCommit both files to the same GitHub folder as `app.py` and redeploy."
     )
     st.stop()
 
@@ -132,7 +129,12 @@ uploaded_file = st.file_uploader("Upload CSV File", type=["csv"])
 
 if uploaded_file is not None:
 
-    df = pd.read_csv(uploaded_file)
+    # ── Load large CSV in chunks ──────────────────
+    with st.spinner("Loading CSV... please wait for large files."):
+        chunks = []
+        for chunk in pd.read_csv(uploaded_file, chunksize=50_000):
+            chunks.append(chunk)
+        df = pd.concat(chunks, ignore_index=True)
 
     st.subheader("Dataset Preview")
     st.dataframe(df.head())
@@ -142,22 +144,36 @@ if uploaded_file is not None:
     feature_df = df.drop("Class", axis=1) if "Class" in df.columns else df.copy()
 
     # Scale Features
-    try:
-        scaled_features = scaler.transform(feature_df)
-    except Exception as e:
-        st.error(f"Feature mismatch detected.\n\n{e}")
-        st.stop()
+    with st.spinner("Scaling features..."):
+        try:
+            scaled_features = scaler.transform(feature_df)
+        except Exception as e:
+            st.error(f"Feature mismatch detected.\n\n{e}")
+            st.stop()
 
     # Create Sequences
-    X = np.array([
-        scaled_features[i:i + SEQUENCE_LENGTH]
-        for i in range(len(scaled_features) - SEQUENCE_LENGTH)
-    ])
+    with st.spinner("Creating sequences..."):
+        X = np.array([
+            scaled_features[i:i + SEQUENCE_LENGTH]
+            for i in range(len(scaled_features) - SEQUENCE_LENGTH)
+        ])
 
     st.success(f"{len(X)} sequences generated")
 
-    # Predict
-    fraud_probs = model.predict(X, verbose=0).flatten()
+    # Predict in batches to avoid OOM
+    with st.spinner("Running predictions..."):
+        BATCH_SIZE  = 2048
+        all_preds   = []
+        total_batches = int(np.ceil(len(X) / BATCH_SIZE))
+        prog = st.progress(0)
+
+        for b in range(total_batches):
+            batch = X[b * BATCH_SIZE:(b + 1) * BATCH_SIZE]
+            preds = model.predict(batch, verbose=0)
+            all_preds.append(preds)
+            prog.progress((b + 1) / total_batches)
+
+        fraud_probs = np.concatenate(all_preds).flatten()
 
     result_df = pd.DataFrame({
         "Sequence_ID":       np.arange(len(fraud_probs)),
@@ -170,9 +186,9 @@ if uploaded_file is not None:
     # ── Metrics ────────────────────────────────────
     st.subheader("Summary")
     col1, col2, col3 = st.columns(3)
-    col1.metric("Total Sequences",          len(result_df))
-    col2.metric("High Risk",                (result_df["Risk"] == "High Risk").sum())
-    col3.metric("Avg Fraud Probability",    round(fraud_probs.mean(), 4))
+    col1.metric("Total Sequences",       len(result_df))
+    col2.metric("High Risk",             (result_df["Risk"] == "High Risk").sum())
+    col3.metric("Avg Fraud Probability", round(fraud_probs.mean(), 4))
 
     # ── Tables ─────────────────────────────────────
     st.subheader("Fraud Prediction Results")
@@ -184,8 +200,10 @@ if uploaded_file is not None:
 
     # ── Charts ─────────────────────────────────────
     st.subheader("Fraud Probability Trend")
+    # Downsample to 5000 points so chart renders fast
+    plot_df = result_df.iloc[::max(1, len(result_df)//5000)]
     st.plotly_chart(
-        px.line(result_df, x="Sequence_ID", y="Fraud_Probability",
+        px.line(plot_df, x="Sequence_ID", y="Fraud_Probability",
                 title="Fraud Probability Across Sequences"),
         use_container_width=True
     )
